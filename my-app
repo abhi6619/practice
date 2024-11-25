@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+  namespace: abhi
+spec:
+  replicas: 3  # Number of desired pod replicas
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+      - name: my-app
+        image: myregistry.io/my-app:latest  # Container image
+        ports:
+       - containerPort: 8080  # Application port
