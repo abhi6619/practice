@@ -1,20 +1,40 @@
 apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: my-app
+kind: Deployment                                                                                                                                    metadata: 
+  name: abhiapp
   namespace: abhi
-spec:
-  replicas: 3  # Number of desired pod replicas
+progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
   selector:
     matchLabels:
-      app: my-app
+      deployment: abhiapp
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
   template:
     metadata:
+      annotations:
+        openshift.io/generated-by: OpenShiftNewApp
+      creationTimestamp: null
       labels:
-        app: my-app
+        deployment: abhiapp
     spec:
       containers:
-      - name: my-app
-        image: myregistry.io/my-app:latest  # Container image
+      - image: ' '
+        imagePullPolicy: IfNotPresent
+        name: abhiapp
         ports:
-       - containerPort: 8080  # Application port
+        - containerPort: 8080
+          protocol: TCP
+        - containerPort: 8447
+          protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
