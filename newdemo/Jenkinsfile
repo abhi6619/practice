@@ -3,55 +3,59 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "YOUR_DOCKERHUB_USERNAME/python-demo-app"
-        IMAGE_TAG = "${BUILD_NUMBER}"
-
-        DOCKER_CREDENTIALS = credentials('dockerhub-credentials')
+        DOCKER_IMAGE = "abhi7677/python-demo-app"
     }
 
-    stage('Checkout') {
-    steps {
-        checkout scm
-    }
-}
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
 
         stage('Python Test') {
             steps {
-                sh '''
-                    python3 -m venv venv
-                    . venv/bin/activate
+                dir('newdemo') {
+                    sh '''
+                        python3 -m venv venv
+                        . venv/bin/activate
 
-                    pip install --upgrade pip
-                    pip install -r requirements.txt
+                        pip install --upgrade pip
+                        pip install -r requirements.txt
 
-                    pytest -v
-                '''
+                        pytest -v
+                    '''
+                }
             }
         }
 
         stage('Code Scan - SonarQube') {
             steps {
-                withSonarQubeEnv('sonarqube') {
-
-                    sh '''
-                        sonar-scanner \
-                          -Dsonar.projectKey=python-demo-app \
-                          -Dsonar.projectName=python-demo-app \
-                          -Dsonar.sources=. \
-                          -Dsonar.python.version=3.12
-                    '''
+                dir('newdemo') {
+                    withSonarQubeEnv('sonarqube') {
+                        sh '''
+                            sonar-scanner \
+                              -Dsonar.projectKey=python-demo-app \
+                              -Dsonar.projectName=python-demo-app \
+                              -Dsonar.sources=. \
+                              -Dsonar.python.version=3.12
+                        '''
+                    }
                 }
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                    docker build \
-                      -t ${DOCKER_IMAGE}:${IMAGE_TAG} \
-                      -t ${DOCKER_IMAGE}:latest \
-                      .
-                '''
+                dir('newdemo') {
+                    sh '''
+                        docker build \
+                          -t ${DOCKER_IMAGE}:${BUILD_NUMBER} \
+                          -t ${DOCKER_IMAGE}:latest \
+                          .
+                    '''
+                }
             }
         }
 
@@ -61,33 +65,34 @@ pipeline {
                     trivy image \
                       --severity HIGH,CRITICAL \
                       --exit-code 1 \
-                      ${DOCKER_IMAGE}:${IMAGE_TAG}
+                      ${DOCKER_IMAGE}:${BUILD_NUMBER}
                 '''
             }
         }
 
         stage('Docker Login') {
-    steps {
-        withCredentials([
-            usernamePassword(
-                credentialsId: 'dockerhub-credentials',
-                usernameVariable: 'DOCKER_USER',
-                passwordVariable: 'DOCKER_PASSWORD'
-            )
-        ]) {
-            sh '''
-                echo "${DOCKER_PASSWORD}" | \
-                docker login \
-                  -u "${DOCKER_USER}" \
-                  --password-stdin
-            '''
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+                    sh '''
+                        echo "${DOCKER_PASSWORD}" | \
+                        docker login \
+                          -u "${DOCKER_USER}" \
+                          --password-stdin
+                    '''
+                }
+            }
         }
-    }
-}
+
         stage('Push Docker Image') {
             steps {
                 sh '''
-                    docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
+                    docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
                     docker push ${DOCKER_IMAGE}:latest
                 '''
             }
@@ -95,10 +100,9 @@ pipeline {
     }
 
     post {
-
         success {
             echo "Pipeline completed successfully."
-            echo "Docker image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
+            echo "Image: ${DOCKER_IMAGE}:${BUILD_NUMBER}"
         }
 
         failure {
@@ -106,9 +110,7 @@ pipeline {
         }
 
         always {
-            sh '''
-                docker logout || true
-            '''
+            sh 'docker logout || true'
         }
     }
 }
