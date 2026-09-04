@@ -9,14 +9,11 @@ pipeline {
         DOCKER_CREDENTIALS = credentials('dockerhub-credentials')
     }
 
-    stages {
-
-        stage('Checkout') {
-            steps {
-                git branch: 'main',
-                    url: 'https://github.com/YOUR_USERNAME/python-demo-app.git'
-            }
-        }
+    stage('Checkout') {
+    steps {
+        checkout scm
+    }
+}
 
         stage('Python Test') {
             steps {
