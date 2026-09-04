@@ -70,16 +70,23 @@ pipeline {
         }
 
         stage('Docker Login') {
-            steps {
-                sh '''
-                    echo "${DOCKER_CREDENTIALS_PSW}" | \
-                    docker login \
-                      -u "${DOCKER_CREDENTIALS_USR}" \
-                      --password-stdin
-                '''
-            }
+    steps {
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'dockerhub-credentials',
+                usernameVariable: 'DOCKER_USER',
+                passwordVariable: 'DOCKER_PASSWORD'
+            )
+        ]) {
+            sh '''
+                echo "${DOCKER_PASSWORD}" | \
+                docker login \
+                  -u "${DOCKER_USER}" \
+                  --password-stdin
+            '''
         }
-
+    }
+}
         stage('Push Docker Image') {
             steps {
                 sh '''
