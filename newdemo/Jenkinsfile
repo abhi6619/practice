@@ -14,7 +14,7 @@ pipeline {
                 git(
                     branch: 'main',
                     credentialsId: 'github-creds',
-                    url: 'https://github.com/YOUR_GITHUB_USERNAME/python-demo-app.git'
+                    url: 'https://github.com/YOUR_ACTUAL_USERNAME/python-demo-app.git'
                 )
             }
         }
@@ -104,7 +104,6 @@ pipeline {
             echo '======================================'
             echo ' PIPELINE SUCCESSFUL'
             echo '======================================'
-
             echo "Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
         }
 
@@ -115,9 +114,7 @@ pipeline {
         }
 
         always {
-            sh '''
-                docker logout || true
-            '''
+            sh 'docker logout || true'
         }
     }
 }
