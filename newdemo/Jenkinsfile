@@ -39,7 +39,6 @@ pipeline {
                               -Dsonar.projectKey=python-demo-app \
                               -Dsonar.projectName=python-demo-app \
                               -Dsonar.sources=. \
-                              -Dsonar.python.version=3.12
                         '''
                     }
                 }
