@@ -12,28 +12,21 @@ pipeline {
         stage('1. Verify Workspace') {
             steps {
                 sh '''
-                    echo "======================================"
-                    echo "WORKSPACE"
-                    echo "======================================"
+                    echo "Checking application directory..."
 
-                    pwd
+                    test -d newdemo
 
-                    echo "======================================"
-                    echo "FILES"
-                    echo "======================================"
+                    cd newdemo
 
+                    echo "Application files:"
                     ls -la
-
-                    echo "======================================"
-                    echo "REQUIRED FILES"
-                    echo "======================================"
 
                     test -f app.py
                     test -f test_app.py
                     test -f requirements.txt
                     test -f Dockerfile
 
-                    echo "All required files are present."
+                    echo "All required files found."
                 '''
             }
         }
@@ -41,10 +34,9 @@ pipeline {
         stage('2. Python Test') {
             steps {
                 sh '''
-                    echo "======================================"
-                    echo "PYTHON TEST"
-                    echo "======================================"
+                    cd newdemo
 
+                    echo "Python version:"
                     python3 --version
 
                     rm -rf venv
@@ -65,11 +57,8 @@ pipeline {
         stage('3. Code Scan') {
             steps {
                 withSonarQubeEnv('sonarqube') {
-
                     sh '''
-                        echo "======================================"
-                        echo "SONARQUBE CODE SCAN"
-                        echo "======================================"
+                        cd newdemo
 
                         sonar-scanner \
                           -Dsonar.projectKey=practice \
@@ -84,20 +73,12 @@ pipeline {
         stage('4. Build Docker Image') {
             steps {
                 sh '''
-                    echo "======================================"
-                    echo "DOCKER BUILD"
-                    echo "======================================"
-
-                    docker --version
+                    cd newdemo
 
                     docker build \
                       -t ${DOCKER_IMAGE}:${IMAGE_TAG} \
                       -t ${DOCKER_IMAGE}:latest \
                       .
-
-                    echo "Docker image built successfully."
-
-                    docker images | grep practice
                 '''
             }
         }
@@ -105,10 +86,6 @@ pipeline {
         stage('5. Trivy Image Scan') {
             steps {
                 sh '''
-                    echo "======================================"
-                    echo "TRIVY IMAGE SCAN"
-                    echo "======================================"
-
                     trivy image \
                       --severity HIGH,CRITICAL \
                       --exit-code 1 \
@@ -129,14 +106,10 @@ pipeline {
                 ]) {
 
                     sh '''
-                        echo "======================================"
-                        echo "DOCKER HUB LOGIN"
-                        echo "======================================"
-
                         echo "$DOCKER_PASSWORD" | \
                         docker login \
-                          --username "$DOCKER_USER" \
-                          --password-stdin
+                        --username "$DOCKER_USER" \
+                        --password-stdin
                     '''
                 }
             }
@@ -145,20 +118,13 @@ pipeline {
         stage('7. Push Docker Image') {
             steps {
                 sh '''
-                    echo "======================================"
-                    echo "PUSHING IMAGE"
-                    echo "======================================"
-
                     docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
 
                     docker push ${DOCKER_IMAGE}:latest
 
-                    echo "======================================"
-                    echo "IMAGE PUSHED SUCCESSFULLY"
-                    echo "======================================"
-
-                    echo "Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
-                    echo "Image: ${DOCKER_IMAGE}:latest"
+                    echo "Image pushed successfully:"
+                    echo "${DOCKER_IMAGE}:${IMAGE_TAG}"
+                    echo "${DOCKER_IMAGE}:latest"
                 '''
             }
         }
@@ -168,25 +134,18 @@ pipeline {
 
         success {
             echo "======================================"
-            echo "          PIPELINE SUCCESS"
+            echo "       PIPELINE SUCCESSFUL"
             echo "======================================"
-
-            echo "Docker Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
-            echo "Docker Image: ${DOCKER_IMAGE}:latest"
         }
 
         failure {
             echo "======================================"
             echo "          PIPELINE FAILED"
             echo "======================================"
-
-            echo "Check the failed stage above."
         }
 
         always {
-            sh '''
-                docker logout || true
-            '''
+            sh 'docker logout || true'
         }
     }
 }
