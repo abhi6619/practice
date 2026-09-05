@@ -9,19 +9,52 @@ pipeline {
 
     stages {
 
-        stage('1. Python Test') {
+        stage('1. Verify Workspace') {
             steps {
                 sh '''
-                    echo "Current directory:"
+                    echo "======================================"
+                    echo "WORKSPACE"
+                    echo "======================================"
+
                     pwd
 
-                    echo "Files:"
+                    echo "======================================"
+                    echo "FILES"
+                    echo "======================================"
+
                     ls -la
 
+                    echo "======================================"
+                    echo "REQUIRED FILES"
+                    echo "======================================"
+
+                    test -f app.py
+                    test -f test_app.py
+                    test -f requirements.txt
+                    test -f Dockerfile
+
+                    echo "All required files are present."
+                '''
+            }
+        }
+
+        stage('2. Python Test') {
+            steps {
+                sh '''
+                    echo "======================================"
+                    echo "PYTHON TEST"
+                    echo "======================================"
+
+                    python3 --version
+
+                    rm -rf venv
+
                     python3 -m venv venv
+
                     . venv/bin/activate
 
-                    pip install --upgrade pip
+                    python -m pip install --upgrade pip
+
                     pip install -r requirements.txt
 
                     pytest -v
@@ -29,10 +62,15 @@ pipeline {
             }
         }
 
-        stage('2. Code Scan') {
+        stage('3. Code Scan') {
             steps {
                 withSonarQubeEnv('sonarqube') {
+
                     sh '''
+                        echo "======================================"
+                        echo "SONARQUBE CODE SCAN"
+                        echo "======================================"
+
                         sonar-scanner \
                           -Dsonar.projectKey=practice \
                           -Dsonar.projectName=practice \
@@ -43,20 +81,34 @@ pipeline {
             }
         }
 
-        stage('3. Build Docker Image') {
+        stage('4. Build Docker Image') {
             steps {
                 sh '''
+                    echo "======================================"
+                    echo "DOCKER BUILD"
+                    echo "======================================"
+
+                    docker --version
+
                     docker build \
                       -t ${DOCKER_IMAGE}:${IMAGE_TAG} \
                       -t ${DOCKER_IMAGE}:latest \
                       .
+
+                    echo "Docker image built successfully."
+
+                    docker images | grep practice
                 '''
             }
         }
 
-        stage('4. Image Scan') {
+        stage('5. Trivy Image Scan') {
             steps {
                 sh '''
+                    echo "======================================"
+                    echo "TRIVY IMAGE SCAN"
+                    echo "======================================"
+
                     trivy image \
                       --severity HIGH,CRITICAL \
                       --exit-code 1 \
@@ -65,8 +117,9 @@ pipeline {
             }
         }
 
-        stage('5. Docker Login') {
+        stage('6. Docker Hub Login') {
             steps {
+
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'dockerhub-creds',
@@ -74,20 +127,38 @@ pipeline {
                         passwordVariable: 'DOCKER_PASSWORD'
                     )
                 ]) {
+
                     sh '''
-                        echo "$DOCKER_PASSWORD" | docker login \
-                            -u "$DOCKER_USER" \
-                            --password-stdin
+                        echo "======================================"
+                        echo "DOCKER HUB LOGIN"
+                        echo "======================================"
+
+                        echo "$DOCKER_PASSWORD" | \
+                        docker login \
+                          --username "$DOCKER_USER" \
+                          --password-stdin
                     '''
                 }
             }
         }
 
-        stage('6. Push Image') {
+        stage('7. Push Docker Image') {
             steps {
                 sh '''
+                    echo "======================================"
+                    echo "PUSHING IMAGE"
+                    echo "======================================"
+
                     docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
+
                     docker push ${DOCKER_IMAGE}:latest
+
+                    echo "======================================"
+                    echo "IMAGE PUSHED SUCCESSFULLY"
+                    echo "======================================"
+
+                    echo "Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
+                    echo "Image: ${DOCKER_IMAGE}:latest"
                 '''
             }
         }
@@ -96,20 +167,26 @@ pipeline {
     post {
 
         success {
-            echo '======================================'
-            echo ' PIPELINE SUCCESSFUL'
-            echo '======================================'
+            echo "======================================"
+            echo "          PIPELINE SUCCESS"
+            echo "======================================"
+
             echo "Docker Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
+            echo "Docker Image: ${DOCKER_IMAGE}:latest"
         }
 
         failure {
-            echo '======================================'
-            echo ' PIPELINE FAILED'
-            echo '======================================'
+            echo "======================================"
+            echo "          PIPELINE FAILED"
+            echo "======================================"
+
+            echo "Check the failed stage above."
         }
 
         always {
-            sh 'docker logout || true'
+            sh '''
+                docker logout || true
+            '''
         }
     }
 }
