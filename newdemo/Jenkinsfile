@@ -55,20 +55,30 @@ pipeline {
         }
 
         stage('3. Code Scan') {
-            steps {
-                withSonarQubeEnv('sonarqube') {
-                    sh '''
-                        cd newdemo
+    steps {
+        script {
+            def scannerHome = tool 'sonar-scanner'
 
-                        sonar-scanner \
-                          -Dsonar.projectKey=practice \
-                          -Dsonar.projectName=practice \
-                          -Dsonar.sources=. \
-                          -Dsonar.python.version=3.12
-                    '''
-                }
+            withSonarQubeEnv('sonarqube') {
+
+                sh """
+                    echo "======================================"
+                    echo "SONARQUBE SCAN"
+                    echo "======================================"
+
+                    echo "Scanner location:"
+                    ${scannerHome}/bin/sonar-scanner --version
+
+                    ${scannerHome}/bin/sonar-scanner \
+                      -Dsonar.projectKey=practice \
+                      -Dsonar.projectName=practice \
+                      -Dsonar.sources=. \
+                      -Dsonar.python.version=3.12
+                """
             }
         }
+    }
+}
 
         stage('4. Build Docker Image') {
             steps {
