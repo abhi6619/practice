@@ -1,131 +1,114 @@
-```groovy
 pipeline {
 
-    agent any
+```
+agent any
 
-    environment {
-        DOCKER_IMAGE = "YOUR_DOCKERHUB_USERNAME/python-demo-app"
-        IMAGE_TAG = "${BUILD_NUMBER}"
-    }
+environment {
+    DOCKER_IMAGE = "abhi6619/python-demo-app"
+    IMAGE_TAG = "${BUILD_NUMBER}"
+}
 
-    stages {
+stages {
 
-        stage('Checkout') {
-            steps {
-                git branch: 'main',
-                    url: 'https://github.com/YOUR_USERNAME/python-demo-app.git'
-            }
-        }
-
-        stage('Python Test') {
-            steps {
-                sh '''
-                    python3 -m venv venv
-                    . venv/bin/activate
-
-                    pip install --upgrade pip
-                    pip install -r requirements.txt
-
-                    pytest -v
-                '''
-            }
-        }
-
-        stage('Code Scan - SonarQube') {
-            steps {
-
-                withSonarQubeEnv('sonarqube') {
-
-                    sh '''
-                        echo "===== SonarQube Environment ====="
-                        echo "SONAR_HOST_URL=$SONAR_HOST_URL"
-
-                        echo "===== Checking SonarScanner ====="
-                        sonar-scanner --version
-
-                        echo "===== Running SonarQube Scan ====="
-
-                        sonar-scanner \
-                          -Dsonar.projectKey=python-demo-app \
-                          -Dsonar.projectName=python-demo-app \
-                          -Dsonar.sources=. \
-                          -Dsonar.python.version=3.12
-                    '''
-                }
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                sh '''
-                    docker build \
-                      -t ${DOCKER_IMAGE}:${IMAGE_TAG} \
-                      -t ${DOCKER_IMAGE}:latest \
-                      .
-                '''
-            }
-        }
-
-        stage('Image Scan - Trivy') {
-            steps {
-                sh '''
-                    trivy image \
-                      --severity HIGH,CRITICAL \
-                      --exit-code 1 \
-                      ${DOCKER_IMAGE}:${IMAGE_TAG}
-                '''
-            }
-        }
-
-        stage('Docker Login') {
-            steps {
-
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'dockerhub-creds',
-                        usernameVariable: 'DOCKER_USERNAME',
-                        passwordVariable: 'DOCKER_PASSWORD'
-                    )
-                ]) {
-
-                    sh '''
-                        echo "$DOCKER_PASSWORD" | \
-                        docker login \
-                        -u "$DOCKER_USERNAME" \
-                        --password-stdin
-                    '''
-                }
-            }
-        }
-
-        stage('Push Docker Image') {
-            steps {
-                sh '''
-                    docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
-                    docker push ${DOCKER_IMAGE}:latest
-                '''
-            }
+    stage('Checkout') {
+        steps {
+            checkout scm
         }
     }
 
-    post {
-
-        success {
-            echo "======================================"
-            echo "Pipeline completed successfully"
-            echo "Docker Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
-            echo "======================================"
-        }
-
-        failure {
-            echo "Pipeline failed. Check the failed stage."
-        }
-
-        always {
+    stage('Python Test') {
+        steps {
             sh '''
-                docker logout || true
+                python3 -m venv venv
+                . venv/bin/activate
+                pip install --upgrade pip
+                pip install -r requirements.txt
+                pytest -v
+            '''
+        }
+    }
+
+    stage('Code Scan') {
+        steps {
+            echo 'Starting SonarQube scan...'
+
+            withSonarQubeEnv('sonarqube') {
+                sh '''
+                    sonar-scanner \
+                      -Dsonar.projectKey=python-demo-app \
+                      -Dsonar.projectName=python-demo-app \
+                      -Dsonar.sources=. \
+                      -Dsonar.python.version=3.12
+                '''
+            }
+        }
+    }
+
+    stage('Build Docker Image') {
+        steps {
+            sh '''
+                docker build \
+                  -t ${DOCKER_IMAGE}:${IMAGE_TAG} \
+                  -t ${DOCKER_IMAGE}:latest \
+                  .
+            '''
+        }
+    }
+
+    stage('Trivy Image Scan') {
+        steps {
+            sh '''
+                trivy image \
+                  --severity HIGH,CRITICAL \
+                  --exit-code 1 \
+                  ${DOCKER_IMAGE}:${IMAGE_TAG}
+            '''
+        }
+    }
+
+    stage('Docker Login') {
+        steps {
+            withCredentials([
+                usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USERNAME',
+                    passwordVariable: 'DOCKER_PASSWORD'
+                )
+            ]) {
+                sh '''
+                    echo "${DOCKER_PASSWORD}" | \
+                    docker login \
+                    -u "${DOCKER_USERNAME}" \
+                    --password-stdin
+                '''
+            }
+        }
+    }
+
+    stage('Push Docker Image') {
+        steps {
+            sh '''
+                docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
+                docker push ${DOCKER_IMAGE}:latest
             '''
         }
     }
 }
+
+post {
+    success {
+        echo "Pipeline completed successfully"
+        echo "Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
+    }
+
+    failure {
+        echo "Pipeline failed"
+    }
+
+    always {
+        sh 'docker logout || true'
+    }
+}
 ```
+
+}
