@@ -1,114 +1,103 @@
 pipeline {
+    agent any
 
-```
-agent any
-
-environment {
-    DOCKER_IMAGE = "abhi6619/python-demo-app"
-    IMAGE_TAG = "${BUILD_NUMBER}"
-}
-
-stages {
-
-    stage('Checkout') {
-        steps {
-            checkout scm
-        }
+    environment {
+        DOCKER_IMAGE = "YOUR_DOCKERHUB_USERNAME/python-demo-app"
+        IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
-    stage('Python Test') {
-        steps {
-            sh '''
-                python3 -m venv venv
-                . venv/bin/activate
-                pip install --upgrade pip
-                pip install -r requirements.txt
-                pytest -v
-            '''
+    stages {
+
+        stage('Checkout') {
+            steps {
+                echo "Code already checked out by Jenkins"
+            }
         }
-    }
 
-    stage('Code Scan') {
-        steps {
-            echo 'Starting SonarQube scan...'
+        stage('Python Test') {
+            steps {
+                sh '''
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+                    pytest -v
+                '''
+            }
+        }
 
-            withSonarQubeEnv('sonarqube') {
+        stage('Code Scan') {
+            steps {
                 sh '''
                     sonar-scanner \
                       -Dsonar.projectKey=python-demo-app \
-                      -Dsonar.projectName=python-demo-app \
-                      -Dsonar.sources=. \
-                      -Dsonar.python.version=3.12
+                      -Dsonar.sources=.
                 '''
             }
         }
-    }
 
-    stage('Build Docker Image') {
-        steps {
-            sh '''
-                docker build \
-                  -t ${DOCKER_IMAGE}:${IMAGE_TAG} \
-                  -t ${DOCKER_IMAGE}:latest \
-                  .
-            '''
-        }
-    }
-
-    stage('Trivy Image Scan') {
-        steps {
-            sh '''
-                trivy image \
-                  --severity HIGH,CRITICAL \
-                  --exit-code 1 \
-                  ${DOCKER_IMAGE}:${IMAGE_TAG}
-            '''
-        }
-    }
-
-    stage('Docker Login') {
-        steps {
-            withCredentials([
-                usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'DOCKER_USERNAME',
-                    passwordVariable: 'DOCKER_PASSWORD'
-                )
-            ]) {
+        stage('Docker Build') {
+            steps {
                 sh '''
-                    echo "${DOCKER_PASSWORD}" | \
-                    docker login \
-                    -u "${DOCKER_USERNAME}" \
-                    --password-stdin
+                    docker build \
+                      -t ${DOCKER_IMAGE}:${IMAGE_TAG} \
+                      -t ${DOCKER_IMAGE}:latest \
+                      .
+                '''
+            }
+        }
+
+        stage('Image Scan') {
+            steps {
+                sh '''
+                    trivy image \
+                      --severity HIGH,CRITICAL \
+                      --exit-code 1 \
+                      ${DOCKER_IMAGE}:${IMAGE_TAG}
+                '''
+            }
+        }
+
+        stage('Docker Login') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+                    sh '''
+                        echo "${DOCKER_PASSWORD}" | docker login \
+                          -u "${DOCKER_USERNAME}" \
+                          --password-stdin
+                    '''
+                }
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                sh '''
+                    docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
+                    docker push ${DOCKER_IMAGE}:latest
                 '''
             }
         }
     }
 
-    stage('Push Docker Image') {
-        steps {
-            sh '''
-                docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
-                docker push ${DOCKER_IMAGE}:latest
-            '''
+    post {
+        success {
+            echo "Pipeline completed successfully"
+            echo "Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
+        }
+
+        failure {
+            echo "Pipeline failed"
+        }
+
+        always {
+            sh 'docker logout || true'
         }
     }
-}
-
-post {
-    success {
-        echo "Pipeline completed successfully"
-        echo "Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
-    }
-
-    failure {
-        echo "Pipeline failed"
-    }
-
-    always {
-        sh 'docker logout || true'
-    }
-}
-```
-
 }
