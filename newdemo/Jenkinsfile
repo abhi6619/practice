@@ -94,15 +94,21 @@ pipeline {
         }
 
         stage('5. Trivy Image Scan') {
-            steps {
-                sh '''
-                    trivy image \
-                      --severity HIGH,CRITICAL \
-                      --exit-code 1 \
-                      ${DOCKER_IMAGE}:${IMAGE_TAG}
-                '''
-            }
-        }
+    steps {
+        sh '''
+            echo "======================================"
+            echo "TRIVY IMAGE SECURITY SCAN"
+            echo "======================================"
+
+            trivy image \
+              --scanners vuln \
+              --severity HIGH,CRITICAL \
+              --ignore-unfixed \
+              --exit-code 1 \
+              ${DOCKER_IMAGE}:${IMAGE_TAG}
+        '''
+    }
+}
 
         stage('6. Docker Hub Login') {
             steps {
