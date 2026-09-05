@@ -3,7 +3,6 @@ pipeline {
     agent any
 
     environment {
-        APP_NAME = "python-demo-app"
         DOCKER_IMAGE = "YOUR_DOCKERHUB_USERNAME/python-demo-app"
         IMAGE_TAG = "${BUILD_NUMBER}"
     }
@@ -12,17 +11,16 @@ pipeline {
 
         stage('1. Checkout') {
             steps {
-                echo "Checking out source code..."
-
-                git branch: 'main',
-                    url: 'https://github.com/YOUR_USERNAME/python-demo-app.git'
+                git(
+                    branch: 'main',
+                    credentialsId: 'github-creds',
+                    url: 'https://github.com/YOUR_GITHUB_USERNAME/python-demo-app.git'
+                )
             }
         }
 
         stage('2. Python Test') {
             steps {
-                echo "Running Python unit tests..."
-
                 sh '''
                     python3 -m venv venv
                     . venv/bin/activate
@@ -37,14 +35,13 @@ pipeline {
 
         stage('3. Code Scan') {
             steps {
-                echo "Running SonarQube code scan..."
-
                 withSonarQubeEnv('sonarqube') {
                     sh '''
                         sonar-scanner \
-                        -Dsonar.projectKey=python-demo-app \
-                        -Dsonar.projectName=python-demo-app \
-                        -Dsonar.sources=.
+                          -Dsonar.projectKey=python-demo-app \
+                          -Dsonar.projectName=python-demo-app \
+                          -Dsonar.sources=. \
+                          -Dsonar.python.version=3.12
                     '''
                 }
             }
@@ -52,34 +49,28 @@ pipeline {
 
         stage('4. Build Docker Image') {
             steps {
-                echo "Building Docker image..."
-
                 sh '''
                     docker build \
-                    -t ${DOCKER_IMAGE}:${IMAGE_TAG} \
-                    -t ${DOCKER_IMAGE}:latest \
-                    .
+                      -t ${DOCKER_IMAGE}:${IMAGE_TAG} \
+                      -t ${DOCKER_IMAGE}:latest \
+                      .
                 '''
             }
         }
 
         stage('5. Image Scan') {
             steps {
-                echo "Scanning Docker image using Trivy..."
-
                 sh '''
                     trivy image \
-                    --severity HIGH,CRITICAL \
-                    --exit-code 1 \
-                    ${DOCKER_IMAGE}:${IMAGE_TAG}
+                      --severity HIGH,CRITICAL \
+                      --exit-code 1 \
+                      ${DOCKER_IMAGE}:${IMAGE_TAG}
                 '''
             }
         }
 
         stage('6. Docker Login') {
             steps {
-                echo "Logging into Docker Hub..."
-
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'dockerhub-creds',
@@ -87,7 +78,6 @@ pipeline {
                         passwordVariable: 'DOCKER_PASSWORD'
                     )
                 ]) {
-
                     sh '''
                         echo "$DOCKER_PASSWORD" | \
                         docker login \
@@ -100,8 +90,6 @@ pipeline {
 
         stage('7. Push Image') {
             steps {
-                echo "Pushing image to Docker Hub..."
-
                 sh '''
                     docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
                     docker push ${DOCKER_IMAGE}:latest
@@ -113,16 +101,17 @@ pipeline {
     post {
 
         success {
-            echo "======================================"
-            echo " PIPELINE SUCCESS"
-            echo "======================================"
+            echo '======================================'
+            echo ' PIPELINE SUCCESSFUL'
+            echo '======================================'
+
             echo "Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
         }
 
         failure {
-            echo "======================================"
-            echo " PIPELINE FAILED"
-            echo "======================================"
+            echo '======================================'
+            echo ' PIPELINE FAILED'
+            echo '======================================'
         }
 
         always {
