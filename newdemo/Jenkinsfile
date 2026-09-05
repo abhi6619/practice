@@ -31,19 +31,21 @@ pipeline {
         }
 
         stage('Code Scan - SonarQube') {
-            steps {
-                dir('newdemo') {
-                    withSonarQubeEnv('sonarqube') {
-                        sh '''
-                            sonar-scanner \
-                              -Dsonar.projectKey=python-demo-app \
-                              -Dsonar.projectName=python-demo-app \
-                              -Dsonar.sources=. \
-                        '''
-                    }
+    steps {
+        dir('newdemo') {
+            withSonarQubeEnv('sonarqube') {
+                withSonarQubeScannerEnv('sonar-scanner') {
+                    sh '''
+                        sonar-scanner \
+                          -Dsonar.projectKey=python-demo-app \
+                          -Dsonar.projectName=python-demo-app \
+                          -Dsonar.sources=.
+                    '''
                 }
             }
         }
+    }
+}
 
         stage('Build Docker Image') {
             steps {
