@@ -1,83 +1,107 @@
 pipeline {
+
     agent any
 
     environment {
+        APP_NAME = "python-demo-app"
         DOCKER_IMAGE = "YOUR_DOCKERHUB_USERNAME/python-demo-app"
         IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('1. Checkout') {
             steps {
-                echo "Code already checked out by Jenkins"
+                echo "Checking out source code..."
+
+                git branch: 'main',
+                    url: 'https://github.com/YOUR_USERNAME/python-demo-app.git'
             }
         }
 
-        stage('Python Test') {
+        stage('2. Python Test') {
             steps {
+                echo "Running Python unit tests..."
+
                 sh '''
                     python3 -m venv venv
                     . venv/bin/activate
+
                     pip install --upgrade pip
                     pip install -r requirements.txt
+
                     pytest -v
                 '''
             }
         }
 
-        stage('Code Scan') {
+        stage('3. Code Scan') {
             steps {
-                sh '''
-                    sonar-scanner \
-                      -Dsonar.projectKey=python-demo-app \
-                      -Dsonar.sources=.
-                '''
-            }
-        }
+                echo "Running SonarQube code scan..."
 
-        stage('Docker Build') {
-            steps {
-                sh '''
-                    docker build \
-                      -t ${DOCKER_IMAGE}:${IMAGE_TAG} \
-                      -t ${DOCKER_IMAGE}:latest \
-                      .
-                '''
-            }
-        }
-
-        stage('Image Scan') {
-            steps {
-                sh '''
-                    trivy image \
-                      --severity HIGH,CRITICAL \
-                      --exit-code 1 \
-                      ${DOCKER_IMAGE}:${IMAGE_TAG}
-                '''
-            }
-        }
-
-        stage('Docker Login') {
-            steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'dockerhub-creds',
-                        usernameVariable: 'DOCKER_USERNAME',
-                        passwordVariable: 'DOCKER_PASSWORD'
-                    )
-                ]) {
+                withSonarQubeEnv('sonarqube') {
                     sh '''
-                        echo "${DOCKER_PASSWORD}" | docker login \
-                          -u "${DOCKER_USERNAME}" \
-                          --password-stdin
+                        sonar-scanner \
+                        -Dsonar.projectKey=python-demo-app \
+                        -Dsonar.projectName=python-demo-app \
+                        -Dsonar.sources=.
                     '''
                 }
             }
         }
 
-        stage('Push Image') {
+        stage('4. Build Docker Image') {
             steps {
+                echo "Building Docker image..."
+
+                sh '''
+                    docker build \
+                    -t ${DOCKER_IMAGE}:${IMAGE_TAG} \
+                    -t ${DOCKER_IMAGE}:latest \
+                    .
+                '''
+            }
+        }
+
+        stage('5. Image Scan') {
+            steps {
+                echo "Scanning Docker image using Trivy..."
+
+                sh '''
+                    trivy image \
+                    --severity HIGH,CRITICAL \
+                    --exit-code 1 \
+                    ${DOCKER_IMAGE}:${IMAGE_TAG}
+                '''
+            }
+        }
+
+        stage('6. Docker Login') {
+            steps {
+                echo "Logging into Docker Hub..."
+
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+
+                    sh '''
+                        echo "$DOCKER_PASSWORD" | \
+                        docker login \
+                        -u "$DOCKER_USER" \
+                        --password-stdin
+                    '''
+                }
+            }
+        }
+
+        stage('7. Push Image') {
+            steps {
+                echo "Pushing image to Docker Hub..."
+
                 sh '''
                     docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
                     docker push ${DOCKER_IMAGE}:latest
@@ -87,17 +111,24 @@ pipeline {
     }
 
     post {
+
         success {
-            echo "Pipeline completed successfully"
+            echo "======================================"
+            echo " PIPELINE SUCCESS"
+            echo "======================================"
             echo "Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
         }
 
         failure {
-            echo "Pipeline failed"
+            echo "======================================"
+            echo " PIPELINE FAILED"
+            echo "======================================"
         }
 
         always {
-            sh 'docker logout || true'
+            sh '''
+                docker logout || true
+            '''
         }
     }
 }
