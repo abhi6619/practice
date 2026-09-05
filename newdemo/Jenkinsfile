@@ -3,29 +3,31 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "YOUR_DOCKERHUB_USERNAME/practice"
+        DOCKER_IMAGE = "abhi6619/practice"
         IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
-    stage('1. Python Test') {
-    steps {
-        sh '''
-            echo "Current directory:"
-            pwd
+    stages {
 
-            echo "Application files:"
-            ls -la
+        stage('1. Python Test') {
+            steps {
+                sh '''
+                    echo "Current directory:"
+                    pwd
 
-            python3 -m venv venv
-            . venv/bin/activate
+                    echo "Files:"
+                    ls -la
 
-            pip install --upgrade pip
-            pip install -r requirements.txt
+                    python3 -m venv venv
+                    . venv/bin/activate
 
-            pytest -v
-        '''
-    }
-}
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+
+                    pytest -v
+                '''
+            }
+        }
 
         stage('2. Code Scan') {
             steps {
@@ -73,10 +75,9 @@ pipeline {
                     )
                 ]) {
                     sh '''
-                        echo "$DOCKER_PASSWORD" | \
-                        docker login \
-                        -u "$DOCKER_USER" \
-                        --password-stdin
+                        echo "$DOCKER_PASSWORD" | docker login \
+                            -u "$DOCKER_USER" \
+                            --password-stdin
                     '''
                 }
             }
@@ -98,7 +99,6 @@ pipeline {
             echo '======================================'
             echo ' PIPELINE SUCCESSFUL'
             echo '======================================'
-
             echo "Docker Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
         }
 
@@ -109,9 +109,7 @@ pipeline {
         }
 
         always {
-            sh '''
-                docker logout || true
-            '''
+            sh 'docker logout || true'
         }
     }
 }
